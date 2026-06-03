@@ -1,0 +1,11 @@
+#!/bin/bash
+# Codex lifecycle hook adapter.
+set -euo pipefail
+. "/Users/tayloreernisse/.local/bin/asg-hook-lib"
+INPUT=$(/bin/cat)
+if OUTPUT=$(printf '%s' "$INPUT" | "/Users/tayloreernisse/.local/bin/asg-fast" codex-hook "$@" 2>/dev/null); then
+  printf '%s\n' "$OUTPUT"
+  exit 0
+fi
+EVENT=$(printf '%s' "$INPUT" | /usr/bin/python3 -c 'import json,sys; print(str(json.load(sys.stdin).get("hook_event_name", "")))' 2>/dev/null || true)
+asg_codex_fail_closed "$EVENT"

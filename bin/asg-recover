@@ -1,0 +1,118 @@
+#!/usr/bin/python3
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+
+ASG = Path("/Users/tayloreernisse/.local/bin/agent-secret-guard")
+ASG_FAST = Path("/Users/tayloreernisse/.local/bin/asg-fast")
+
+
+def run_step(name: str, argv: list[str], *, timeout: float, input_text: str | None = None) -> dict[str, Any]:
+    try:
+        proc = subprocess.run(
+            argv,
+            input=input_text,
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {"name": name, "ok": False, "timeout": True}
+    except Exception as exc:
+        return {"name": name, "ok": False, "error": exc.__class__.__name__}
+
+    parsed: Any = None
+    if proc.stdout.strip().startswith("{"):
+        try:
+            parsed = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            parsed = None
+    return {
+        "name": name,
+        "ok": proc.returncode == 0,
+        "returncode": proc.returncode,
+        "json": parsed,
+    }
+
+
+def circuit_paths() -> list[Path]:
+    paths: list[Path] = []
+    configured = os.environ.get("ASG_FAST_CIRCUIT_PATH")
+    if configured:
+        paths.append(Path(configured))
+    configured_socket = os.environ.get("ASG_DAEMON_SOCKET")
+    if configured_socket:
+        paths.append(Path(configured_socket + ".unhealthy-until"))
+    paths.append(Path.home() / ".local/run/agent-secret-guard/asg-unhealthy-until")
+
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for path in paths:
+        key = str(path)
+        if key not in seen:
+            seen.add(key)
+            unique.append(path)
+    return unique
+
+
+def clear_circuits() -> dict[str, Any]:
+    cleared: list[str] = []
+    errors: list[dict[str, str]] = []
+    for path in circuit_paths():
+        if not path.exists():
+            continue
+        try:
+            path.unlink()
+            cleared.append(str(path))
+        except OSError as exc:
+            errors.append({"path": str(path), "error": exc.__class__.__name__})
+    return {"name": "clear-circuit-markers", "ok": not errors, "cleared": cleared, "errors": errors}
+
+
+def main() -> int:
+    steps: list[dict[str, Any]] = []
+    if not ASG.exists() or not ASG_FAST.exists():
+        result = {
+            "ok": False,
+            "error": "missing-asg-command",
+            "agent_secret_guard": str(ASG),
+            "asg_fast": str(ASG_FAST),
+            "next": f"Run {ASG} doctor after restoring missing ASG files.",
+        }
+        print(json.dumps(result, sort_keys=True))
+        return 1
+
+    steps.append(run_step("daemon-status-before", [str(ASG), "daemon-status"], timeout=2.0))
+    steps.append(run_step("daemon-stop", [str(ASG), "daemon-stop", "--timeout", "1.5"], timeout=3.0))
+    steps.append(clear_circuits())
+    steps.append(run_step("daemon-start", [str(ASG), "daemon-start", "--timeout", "2.0"], timeout=3.0))
+    steps.append(run_step("daemon-status-after", [str(ASG), "daemon-status"], timeout=2.0))
+    steps.append(
+        run_step(
+            "benign-fast-probe",
+            [str(ASG_FAST), "scan", "--surface", "bash-command", "--quiet", "--fail-on-detect"],
+            timeout=2.0,
+            input_text="echo hello",
+        )
+    )
+
+    ok = bool(steps[-1].get("ok"))
+    result = {
+        "ok": ok,
+        "steps": steps,
+        "retry": "Retry the blocked hook action only after ok=true.",
+        "next_if_not_ok": f"Run {ASG} doctor and inspect payload-free hook telemetry under ~/.local/state/agent-secret-guard/.",
+    }
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

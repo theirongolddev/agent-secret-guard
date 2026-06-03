@@ -1,0 +1,8 @@
+#!/bin/bash
+set -euo pipefail
+. "/Users/tayloreernisse/.local/bin/asg-hook-lib"
+if OUTPUT=$(/Users/tayloreernisse/.local/bin/asg-fast cursor-hook --event afterAgentThought "$@" 2>/dev/null); then
+  printf '%s\n' "$OUTPUT"
+  exit 0
+fi
+asg_cursor_fail_closed afterAgentThought

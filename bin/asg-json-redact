@@ -1,0 +1,4 @@
+#!/bin/bash
+# Generic harness adapter: read JSON from stdin and emit redacted JSON.
+set -euo pipefail
+exec "/Users/tayloreernisse/.local/bin/asg-fast" json-redact "$@"

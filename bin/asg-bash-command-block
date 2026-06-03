@@ -1,0 +1,20 @@
+#!/bin/bash
+# Generic harness adapter: read a raw shell command from stdin and block if it
+# contains credible secret material. The command is never echoed.
+set -euo pipefail
+. "/Users/tayloreernisse/.local/bin/asg-hook-lib"
+
+set +e
+"/Users/tayloreernisse/.local/bin/asg-fast" scan --surface bash-command --quiet --fail-on-detect
+STATUS=$?
+set -e
+if [[ "$STATUS" -eq 0 ]]; then
+  exit 0
+fi
+
+if [[ "$STATUS" -ne 2 ]]; then
+  asg_fail_closed_stderr generic
+fi
+
+printf '%s\n' 'Blocked shell command: potential secret material detected. Command omitted.' >&2
+exit 2

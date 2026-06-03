@@ -1,0 +1,105 @@
+#!/usr/bin/python3
+# =============================================================================
+# INFISICAL-GUARD: PreToolUse hook — block unsafe `infisical secrets` forms.
+#
+# The Infisical CLI prints secret VALUES by default. Only a few invocations
+# are safe (don't emit values to stdout). This guard blocks everything else.
+#
+# Safe forms:
+#   infisical secrets --env=X -o json | jq -r '.[].secretKey'
+#   infisical secrets get NAME --env=X --plain | wc -c       (length only)
+#   infisical secrets get NAME --env=X --plain | sha256sum   (hash compare)
+#   infisical secrets get NAME --env=X --plain > /path/to/file   (write-to-file)
+#   infisical secrets set --file /tmp/secrets.env --env=X   (file push)
+#   infisical secrets set KEY=@/path/to/file --env=X        (file-backed push)
+#   infisical secrets --help / -h
+#   infisical run --env=X -- <cmd>      (values to env, never stdout — allowed)
+#
+# Exit codes: 0 = allow, 2 = block (stderr message shown to user).
+# =============================================================================
+import json
+import re
+import sys
+
+
+def main() -> int:
+    try:
+        payload = json.load(sys.stdin)
+    except Exception:
+        return 0  # malformed input, don't block
+    cmd = (payload.get("tool_input") or {}).get("command") or ""
+
+    # Only concern ourselves with `infisical secrets` invocations.
+    # `infisical run` does not emit values to stdout, so it's allowed.
+    if not re.search(r"\binfisical\s+secrets\b", cmd):
+        return 0
+
+    # --help / -h anywhere
+    if re.search(r"(--help\b|\s-h(\s|$))", cmd):
+        return 0
+
+    # `infisical secrets set` — writing, not reading
+    if re.search(r"\binfisical\s+secrets\s+set\b", cmd):
+        # Inline KEY=VALUE forms put secret material directly in argv and the
+        # transcript. Only file-based forms are allowed.
+        if re.search(r"(^|\s)--file(\s|=)", cmd) or re.search(r"\b[A-Za-z_][A-Za-z0-9_]*=@", cmd):
+            return 0
+        sys.stderr.write(
+            "BLOCKED by infisical-guard: inline `infisical secrets set` can "
+            "place secret values in command text and logs.\n\n"
+            "Use `infisical secrets set --file /tmp/secrets.env ...` with a "
+            "chmod-600 temp file, or `KEY=@/path/to/file`.\n"
+        )
+        return 2
+
+    # Keys-only listing: must pipe through jq with .secretKey extractor
+    if re.search(r"jq\b", cmd) and re.search(r"\.secretKey\b", cmd):
+        return 0
+
+    # `infisical secrets get NAME --plain` piped to a safe consumer OR
+    # redirected to a file (value never hits visible stdout)
+    if re.search(r"\binfisical\s+secrets\s+get\b", cmd) and "--plain" in cmd:
+        safe_consumers = [
+            r"\|\s*wc\b",
+            r"\|\s*sha256sum\b",
+            r"\|\s*sha1sum\b",
+            r"\|\s*md5sum\b",
+            r"\|\s*shasum\b",
+            r"\|\s*grep\s+-q\b",
+            r"\|\s*grep\s+-qc\b",
+            r"\|\s*grep\s+-c\b",
+            r">\s*\S",       # redirect stdout to a file
+            r">>\s*\S",      # append to file
+        ]
+        for pat in safe_consumers:
+            if re.search(pat, cmd):
+                return 0
+
+    # Everything else: block
+    sys.stderr.write(
+        "BLOCKED by infisical-guard: this form of `infisical secrets` can "
+        "emit plaintext secret values to stdout.\n\n"
+        "Command omitted to avoid writing secret-bearing text into hook logs.\n\n"
+        "Use one of these safe forms:\n\n"
+        "  # List keys only (safe)\n"
+        "  infisical secrets --env=X -o json | jq -r '.[].secretKey'\n\n"
+        "  # Check if a secret is set (length only)\n"
+        "  infisical secrets get NAME --env=X --plain | wc -c\n\n"
+        "  # Hash-compare two secrets\n"
+        "  infisical secrets get NAME --env=X --plain | sha256sum\n\n"
+        "  # Write secret to a file without stdout exposure\n"
+        "  infisical secrets get NAME --env=X --plain > /tmp/keyfile\n\n"
+        "  # Set secrets from a chmod-600 env-format temp file\n"
+        "  infisical secrets set --file /tmp/secrets.env --env=X\n\n"
+        "  # Set one secret from a file (value not in argv)\n"
+        "  infisical secrets set KEY=@/path/to/file --env=X\n\n"
+        "  # Inject into a child process via env (never stdout)\n"
+        "  infisical run --env=X -- <your-command>\n\n"
+        "See ~/.claude/projects/.../memory/feedback_infisical_cli_leak.md for "
+        "the context of why this guard exists.\n"
+    )
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

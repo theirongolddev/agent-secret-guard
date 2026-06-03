@@ -1,0 +1,55 @@
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "command": "/Users/tayloreernisse/.local/bin/asg-codex-hook",
+            "statusMessage": "Checking permission request for secrets",
+            "timeout": 2,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "/Users/tayloreernisse/.local/bin/asg-codex-hook",
+            "statusMessage": "Checking tool output for secrets",
+            "timeout": 2,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "/Users/tayloreernisse/.local/bin/asg-codex-hook",
+            "statusMessage": "Checking tool input for secrets",
+            "timeout": 2,
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "/Users/tayloreernisse/.local/bin/asg-codex-hook",
+            "statusMessage": "Checking prompt for secrets",
+            "timeout": 2,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

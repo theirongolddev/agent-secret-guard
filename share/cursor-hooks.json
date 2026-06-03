@@ -1,0 +1,84 @@
+{
+  "hooks": {
+    "afterAgentResponse": [
+      {
+        "command": "/Users/tayloreernisse/.local/bin/asg-cursor-after-agent-response",
+        "failClosed": false,
+        "timeout": 2
+      }
+    ],
+    "afterAgentThought": [
+      {
+        "command": "/Users/tayloreernisse/.local/bin/asg-cursor-after-agent-thought",
+        "failClosed": false,
+        "timeout": 2
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "/Users/tayloreernisse/.local/bin/asg-cursor-after-file-edit",
+        "failClosed": false,
+        "timeout": 2
+      }
+    ],
+    "afterMCPExecution": [
+      {
+        "command": "/Users/tayloreernisse/.local/bin/asg-cursor-after-mcp",
+        "failClosed": false,
+        "timeout": 2
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "command": "/Users/tayloreernisse/.local/bin/asg-cursor-after-shell",
+        "failClosed": false,
+        "timeout": 2
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "command": "/Users/tayloreernisse/.local/bin/asg-cursor-before-mcp",
+        "failClosed": false,
+        "timeout": 2
+      }
+    ],
+    "beforeReadFile": [
+      {
+        "command": "/Users/tayloreernisse/.local/bin/asg-cursor-before-read",
+        "failClosed": false,
+        "timeout": 2
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "/Users/tayloreernisse/.local/bin/asg-cursor-before-shell",
+        "failClosed": false,
+        "timeout": 2
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "/Users/tayloreernisse/.local/bin/asg-cursor-before-prompt",
+        "failClosed": false,
+        "timeout": 2
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "/Users/tayloreernisse/.local/bin/asg-cursor-posttooluse",
+        "failClosed": false,
+        "matcher": ".*",
+        "timeout": 2
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "/Users/tayloreernisse/.local/bin/asg-cursor-pretooluse",
+        "failClosed": false,
+        "matcher": ".*",
+        "timeout": 2
+      }
+    ]
+  },
+  "version": 1
+}

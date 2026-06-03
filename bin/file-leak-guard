@@ -1,0 +1,47 @@
+#!/bin/bash
+# JSON file-read PreToolUse adapter. File path policy lives in agent_secret_guard.py.
+set -euo pipefail
+. "/Users/tayloreernisse/.local/bin/asg-hook-lib"
+
+JQ="/usr/bin/jq"
+if [[ ! -x "$JQ" ]]; then
+  asg_claude_pretool_fail_closed claude
+fi
+
+INPUT=$(/bin/cat)
+FILE_PATH=$(printf '%s' "$INPUT" | "$JQ" -r '.tool_input.file_path // .tool_input.path // ""')
+
+if [[ -z "$FILE_PATH" ]]; then
+  echo '{"continue": true}'
+  exit 0
+fi
+
+set +e
+printf '%s' "$FILE_PATH" | "$HOME/.local/bin/asg-fast" scan --surface file-path --quiet --fail-on-detect
+STATUS=$?
+set -e
+
+if [[ "$STATUS" -eq 0 ]]; then
+  echo '{"continue": true}'
+  exit 0
+fi
+
+if [[ "$STATUS" -ne 2 ]]; then
+  asg_claude_pretool_fail_closed claude
+fi
+
+{
+  echo "═══ BLOCKED BY file-leak-guard ═══"
+  echo ""
+  echo "Reason: central Agent Secret Guard file path policy detected a known secret-bearing path."
+  echo ""
+  echo "Blocked file path omitted to avoid writing secret-bearing path text into hook logs."
+  echo ""
+  echo "Safer alternative:"
+  echo "  use a key-only projection, a documented non-secret template, or ask the user for redacted content"
+  echo ""
+  echo "If you genuinely need to read this file, ask the user to run a redacted"
+  echo "extraction command manually using '! <command>' from the prompt."
+  echo "Do not bypass this guard."
+} >&2
+exit 2

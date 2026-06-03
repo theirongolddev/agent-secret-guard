@@ -1,0 +1,6 @@
+#!/bin/bash
+# Run a command with Agent Secret Guard command pre-scan and output redaction.
+# Intended for harness integrations that can route shell execution through a
+# wrapper. Prefer native hooks when the harness supports them.
+set -euo pipefail
+exec "/Users/tayloreernisse/.local/bin/agent-secret-guard" exec -- "$@"

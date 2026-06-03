@@ -1,0 +1,65 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "/Users/tayloreernisse/.local/bin/secret-scan",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "/Users/tayloreernisse/.local/bin/cmd-leak-guard",
+            "type": "command"
+          },
+          {
+            "command": "/Users/tayloreernisse/.local/bin/secret-wrap",
+            "type": "command"
+          },
+          {
+            "command": "/Users/tayloreernisse/.local/bin/infisical-guard",
+            "type": "command"
+          },
+          {
+            "command": "/Users/tayloreernisse/.local/bin/secret-push-guard",
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "/Users/tayloreernisse/.local/bin/file-leak-guard",
+            "type": "command"
+          }
+        ],
+        "matcher": "Read"
+      },
+      {
+        "hooks": [
+          {
+            "command": "/Users/tayloreernisse/.local/bin/secret-url-guard",
+            "type": "command"
+          }
+        ],
+        "matcher": "WebFetch|WebSearch"
+      },
+      {
+        "hooks": [
+          {
+            "command": "/Users/tayloreernisse/.local/bin/secret-mcp-guard",
+            "type": "command"
+          }
+        ],
+        "matcher": "mcp__.*"
+      }
+    ]
+  }
+}

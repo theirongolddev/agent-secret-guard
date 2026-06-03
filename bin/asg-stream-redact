@@ -1,0 +1,4 @@
+#!/bin/bash
+# Generic harness adapter: redact arbitrary stdin.
+set -euo pipefail
+exec "/Users/tayloreernisse/.local/bin/asg-fast" redact --surface stream "$@"

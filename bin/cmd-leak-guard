@@ -1,0 +1,46 @@
+#!/bin/bash
+# JSON Bash PreToolUse adapter. Command policy lives in agent_secret_guard.py.
+set -euo pipefail
+. "/Users/tayloreernisse/.local/bin/asg-hook-lib"
+
+JQ="/usr/bin/jq"
+if [[ ! -x "$JQ" ]]; then
+  asg_claude_pretool_fail_closed claude
+fi
+
+INPUT=$(/bin/cat)
+COMMAND=$(printf '%s' "$INPUT" | "$JQ" -r '.tool_input.command // ""')
+
+if [[ -z "$COMMAND" ]]; then
+  echo '{"continue": true}'
+  exit 0
+fi
+
+set +e
+printf '%s' "$COMMAND" | "$HOME/.local/bin/asg-fast" scan --surface bash-command --quiet --fail-on-detect
+STATUS=$?
+set -e
+
+if [[ "$STATUS" -eq 0 ]]; then
+  echo '{"continue": true}'
+  exit 0
+fi
+
+if [[ "$STATUS" -ne 2 ]]; then
+  asg_claude_pretool_fail_closed claude
+fi
+
+{
+  echo "═══ BLOCKED BY cmd-leak-guard ═══"
+  echo ""
+  echo "Reason: central Agent Secret Guard command policy detected potential secret exposure."
+  echo ""
+  echo "Blocked command omitted to avoid writing secret-bearing text into hook logs."
+  echo ""
+  echo "Safer alternative:"
+  echo "  use key-only projections, operator-managed secret injection, or a redacted command path"
+  echo ""
+  echo "If you genuinely need this command, ask the user to run it manually using"
+  echo "the '! <command>' prompt prefix. Do not bypass this guard."
+} >&2
+exit 2
