@@ -2750,6 +2750,7 @@ def add_high_entropy_findings(text: str, findings: list[Finding]) -> None:
                 or is_short_known_provider_token(value)
                 or AWS_ACCESS_KEY_ID_RE.fullmatch(value)
                 or any(AWS_ACCESS_KEY_ID_RE.fullmatch(normalize_candidate(rhs)) for rhs in rhs_values)
+                or any(is_ref_or_path_slug(rhs) for rhs in rhs_values)
                 or any(is_obvious_non_secret_assignment_value(rhs) for rhs in rhs_values)
             ):
                 continue
