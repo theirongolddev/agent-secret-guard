@@ -29,6 +29,20 @@ struct buffer {
   size_t cap;
 };
 
+enum wait_result {
+  WAIT_RESULT_READY = 0,
+  WAIT_RESULT_TIMEOUT,
+  WAIT_RESULT_CLOSED,
+  WAIT_RESULT_FAILED,
+};
+
+enum write_result {
+  WRITE_RESULT_OK = 0,
+  WRITE_RESULT_TIMEOUT,
+  WRITE_RESULT_BROKEN_PIPE,
+  WRITE_RESULT_FAILED,
+};
+
 static void buffer_free(struct buffer *buf) {
   free(buf->data);
   buf->data = NULL;
@@ -75,6 +89,9 @@ static int buffer_reserve(struct buffer *buf, size_t extra) {
 }
 
 static int buffer_append(struct buffer *buf, const void *data, size_t len) {
+  if (len == 0) {
+    return 0;
+  }
   if (buffer_reserve(buf, len) != 0) {
     return -1;
   }
@@ -115,6 +132,9 @@ static int write_all_fd(int fd, const void *data, size_t len) {
       }
       return -1;
     }
+    if (n == 0) {
+      return -1;
+    }
     cursor += n;
     len -= (size_t)n;
   }
@@ -127,30 +147,33 @@ static long long now_ms(void) {
   return ((long long)tv.tv_sec * 1000LL) + ((long long)tv.tv_usec / 1000LL);
 }
 
-static int wait_for_fd(int fd, short events, long long deadline_ms) {
+static enum wait_result wait_for_fd(int fd, short events, long long deadline_ms) {
   for (;;) {
     long long remaining = deadline_ms - now_ms();
     if (remaining <= 0) {
-      return -1;
+      return WAIT_RESULT_TIMEOUT;
     }
     struct pollfd pfd = {.fd = fd, .events = events};
     int polled = poll(&pfd, 1, remaining > INT_MAX ? INT_MAX : (int)remaining);
     if (polled > 0) {
       if (pfd.revents & events) {
-        return 0;
+        return WAIT_RESULT_READY;
       }
-      if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) {
-        return -1;
+      if (pfd.revents & (POLLERR | POLLHUP)) {
+        return WAIT_RESULT_CLOSED;
+      }
+      if (pfd.revents & POLLNVAL) {
+        return WAIT_RESULT_FAILED;
       }
     } else if (polled == 0) {
-      return -1;
+      return WAIT_RESULT_TIMEOUT;
     } else if (errno != EINTR) {
-      return -1;
+      return WAIT_RESULT_FAILED;
     }
   }
 }
 
-static int write_all_fd_until(int fd, const void *data, size_t len, long long deadline_ms) {
+static enum write_result write_all_fd_until(int fd, const void *data, size_t len, long long deadline_ms) {
   const unsigned char *cursor = (const unsigned char *)data;
   while (len) {
     ssize_t n = write(fd, cursor, len);
@@ -159,17 +182,30 @@ static int write_all_fd_until(int fd, const void *data, size_t len, long long de
         continue;
       }
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        if (wait_for_fd(fd, POLLOUT, deadline_ms) != 0) {
-          return -1;
+        enum wait_result waited = wait_for_fd(fd, POLLOUT, deadline_ms);
+        if (waited == WAIT_RESULT_TIMEOUT) {
+          return WRITE_RESULT_TIMEOUT;
+        }
+        if (waited == WAIT_RESULT_CLOSED) {
+          return WRITE_RESULT_BROKEN_PIPE;
+        }
+        if (waited != WAIT_RESULT_READY) {
+          return WRITE_RESULT_FAILED;
         }
         continue;
       }
-      return -1;
+      if (errno == EPIPE) {
+        return WRITE_RESULT_BROKEN_PIPE;
+      }
+      return WRITE_RESULT_FAILED;
+    }
+    if (n == 0) {
+      return WRITE_RESULT_FAILED;
     }
     cursor += n;
     len -= (size_t)n;
   }
-  return 0;
+  return WRITE_RESULT_OK;
 }
 
 static int read_exact_fd(int fd, void *data, size_t len) {
@@ -461,6 +497,21 @@ static int exec_cli_direct(int argc, char **argv) {
   return 1;
 }
 
+static void terminate_child(pid_t pid, int *status) {
+  kill(pid, SIGTERM);
+  usleep(50000);
+  pid_t waited;
+  do {
+    waited = waitpid(pid, status, WNOHANG);
+  } while (waited < 0 && errno == EINTR);
+  if (waited == 0) {
+    kill(pid, SIGKILL);
+    do {
+      waited = waitpid(pid, status, 0);
+    } while (waited < 0 && errno == EINTR);
+  }
+}
+
 static int fallback_cli(int argc, char **argv, const struct buffer *input) {
   char *path = cli_path();
   if (!path) {
@@ -485,6 +536,7 @@ static int fallback_cli(int argc, char **argv, const struct buffer *input) {
   }
 
   if (pid == 0) {
+    (void)signal(SIGPIPE, SIG_DFL);
     close(pipe_fd[1]);
     if (dup2(pipe_fd[0], STDIN_FILENO) < 0) {
       _exit(127);
@@ -513,19 +565,24 @@ static int fallback_cli(int argc, char **argv, const struct buffer *input) {
   int timeout_ms = fallback_timeout_ms();
   long long deadline_ms = now_ms() + timeout_ms;
   int status = 0;
-  if (input->len && write_all_fd_until(pipe_fd[1], input->data, input->len, deadline_ms) != 0) {
-    close(pipe_fd[1]);
-    kill(pid, SIGTERM);
-    usleep(50000);
-    if (waitpid(pid, &status, WNOHANG) == 0) {
-      kill(pid, SIGKILL);
-      waitpid(pid, &status, 0);
-    }
+  enum write_result input_write = WRITE_RESULT_OK;
+  if (input->len) {
+    input_write = write_all_fd_until(pipe_fd[1], input->data, input->len, deadline_ms);
+  }
+  close(pipe_fd[1]);
+
+  if (input_write == WRITE_RESULT_TIMEOUT) {
+    terminate_child(pid, &status);
     free(path);
     dprintf(STDERR_FILENO, "asg-fast: fallback timed out\n");
     return 124;
   }
-  close(pipe_fd[1]);
+  if (input_write == WRITE_RESULT_FAILED) {
+    terminate_child(pid, &status);
+    free(path);
+    dprintf(STDERR_FILENO, "asg-fast: fallback input unavailable\n");
+    return 1;
+  }
 
   for (;;) {
     pid_t waited = waitpid(pid, &status, WNOHANG);
@@ -537,12 +594,7 @@ static int fallback_cli(int argc, char **argv, const struct buffer *input) {
       return 1;
     }
     if (now_ms() >= deadline_ms) {
-      kill(pid, SIGTERM);
-      usleep(50000);
-      if (waitpid(pid, &status, WNOHANG) == 0) {
-        kill(pid, SIGKILL);
-        waitpid(pid, &status, 0);
-      }
+      terminate_child(pid, &status);
       free(path);
       dprintf(STDERR_FILENO, "asg-fast: fallback timed out\n");
       return 124;
@@ -551,7 +603,12 @@ static int fallback_cli(int argc, char **argv, const struct buffer *input) {
   }
   free(path);
   if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
+    int exit_code = WEXITSTATUS(status);
+    if (input_write == WRITE_RESULT_BROKEN_PIPE && exit_code == 0) {
+      dprintf(STDERR_FILENO, "asg-fast: fallback closed stdin before input was delivered\n");
+      return 1;
+    }
+    return exit_code;
   }
   if (WIFSIGNALED(status)) {
     return 128 + WTERMSIG(status);
@@ -645,6 +702,8 @@ int main(int argc, char **argv) {
   if (!command_supported_by_daemon(argc, argv)) {
     return exec_cli_direct(argc, argv);
   }
+
+  (void)signal(SIGPIPE, SIG_IGN);
 
   struct buffer input = {0};
   if (read_stdin_all(&input) != 0) {
