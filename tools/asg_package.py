@@ -5,7 +5,7 @@ import argparse
 import json
 import os
 import shutil
-import subprocess
+import subprocess  # nosec B404 - package commands execute fixed local tools without shell=True.
 import tempfile
 import time
 from pathlib import Path
@@ -31,10 +31,22 @@ HOOK_MARKERS = (
     "secret-url-guard",
     "secret-wrap",
 )
+BUILD_TIMEOUT_SECONDS = 30
+LEGACY_INSTALLER_TIMEOUT_SECONDS = 120
+
+
+def load_json_object(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path}: invalid JSON: {exc.msg}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: top-level JSON is not an object")
+    return data
 
 
 def load_manifest() -> dict[str, Any]:
-    return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    return load_json_object(MANIFEST_PATH)
 
 
 def expand(value: str) -> Path:
@@ -156,9 +168,7 @@ def prune_hook_entries(entries: Any) -> tuple[list[Any], int]:
 def remove_active_hooks(path: Path, *, dry_run: bool) -> dict[str, Any]:
     if not path.exists():
         return {"path": str(path), "present": False, "changed": False, "removed": 0}
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path}: top-level JSON is not an object")
+    data = load_json_object(path)
     hooks = data.get("hooks")
     if not isinstance(hooks, dict):
         return {"path": str(path), "present": True, "changed": False, "removed": 0}
@@ -245,12 +255,19 @@ def build_fast_client(build: dict[str, Any], *, dry_run: bool) -> dict[str, Any]
             handle.write(rendered_source)
         compile_source = temp_source
     try:
-        proc = subprocess.run(
-            [compiler, *build["args"], "-o", str(target), str(compile_source)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
+        try:
+            proc = subprocess.run(  # nosec B603 - compiler path is selected from the package manifest; shell is never used.
+                [compiler, *build["args"], "-o", str(target), str(compile_source)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=BUILD_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            result["error"] = "compile-timeout"
+            result["returncode"] = 124
+            result["timeout_seconds"] = BUILD_TIMEOUT_SECONDS
+            return result
     finally:
         if temp_source and temp_source.exists():
             temp_source.unlink()
@@ -287,8 +304,23 @@ def cmd_install(args: argparse.Namespace) -> int:
         legacy_args = [str(legacy_installer)]
         if args.apply_hooks:
             legacy_args.append("--apply")
-        proc = subprocess.run(legacy_args, text=True, capture_output=True, check=False)
-        legacy_result = {"returncode": proc.returncode, "stdout_bytes": len(proc.stdout), "stderr_bytes": len(proc.stderr)}
+        try:
+            proc = subprocess.run(  # nosec B603 - legacy installer path is fixed under ~/.local/bin; shell is never used.
+                legacy_args,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=LEGACY_INSTALLER_TIMEOUT_SECONDS,
+            )
+            legacy_result = {"returncode": proc.returncode, "stdout_bytes": len(proc.stdout), "stderr_bytes": len(proc.stderr)}
+        except subprocess.TimeoutExpired as exc:
+            legacy_result = {
+                "returncode": 124,
+                "stdout_bytes": len(exc.stdout or ""),
+                "stderr_bytes": len(exc.stderr or ""),
+                "timeout": True,
+                "timeout_seconds": LEGACY_INSTALLER_TIMEOUT_SECONDS,
+            }
 
     ok = build_ok and (args.dry_run or legacy_result.get("returncode", 0) == 0)
     print(

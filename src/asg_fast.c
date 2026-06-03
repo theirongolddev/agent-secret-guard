@@ -65,14 +65,10 @@ static int buffer_reserve(struct buffer *buf, size_t extra) {
     }
     next *= 2;
   }
-  unsigned char *data = malloc(next);
+  unsigned char *data = realloc(buf->data, next);
   if (!data) {
     return -1;
   }
-  if (buf->len) {
-    memcpy(data, buf->data, buf->len);
-  }
-  free(buf->data);
   buf->data = data;
   buf->cap = next;
   return 0;
