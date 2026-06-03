@@ -2257,6 +2257,35 @@ def is_path_like_candidate(value: str) -> bool:
     return bool(re.search(r"(?i)(?:^|[\\/])[^\\/]+\.(?:md|mjs|js|ts|tsx|json|ya?ml|toml|py|rs|go|txt)$", candidate))
 
 
+def is_ref_or_path_slug(value: str) -> bool:
+    """Suppress VCS refs and file paths that split into short word-runs.
+
+    Covers owner/branch slugs, jj/git bookmark names, "Merge pull request from
+    owner/branch" sources, and slash-prefixed doc paths like
+    ``../../Some_File_Name``. A packed secret instead carries one long opaque
+    run, so we only suppress when every alphanumeric run is short.
+
+    Safety: a candidate is only suppressed when it contains a path separator
+    (``/`` or ``\\``) *and* a ``-`` or ``_``, with no base64 fill (``+``/``=``).
+    Standard base64 uses ``+``/``/`` but never ``-``/``_``; url-safe base64 uses
+    ``-``/``_`` but never ``/`` -- so this shape matches neither encoding, nor a
+    bare random API key (which has no separators).
+    """
+    candidate = normalize_candidate(value)
+    if ("/" not in candidate and "\\" not in candidate) or "://" in candidate:
+        return False
+    if "+" in candidate or "=" in candidate:
+        return False
+    if "-" not in candidate and "_" not in candidate:
+        return False
+    if not re.fullmatch(r"[A-Za-z0-9._/\\-]+", candidate):
+        return False
+    runs = [run for run in re.split(r"[^A-Za-z0-9]+", candidate) if run]
+    if len(runs) < 3:
+        return False
+    return all(len(run) <= 16 for run in runs)
+
+
 def is_short_known_provider_token(value: str) -> bool:
     candidate = normalize_candidate(value)
     if candidate.startswith("pypi-"):
@@ -2717,6 +2746,7 @@ def add_high_entropy_findings(text: str, findings: list[Finding]) -> None:
                 or is_vercel_deployment_metadata_identifier(value, scan_line)
                 or any(char.isspace() for char in value)
                 or is_path_like_candidate(value)
+                or is_ref_or_path_slug(value)
                 or is_short_known_provider_token(value)
                 or AWS_ACCESS_KEY_ID_RE.fullmatch(value)
                 or any(AWS_ACCESS_KEY_ID_RE.fullmatch(normalize_candidate(rhs)) for rhs in rhs_values)

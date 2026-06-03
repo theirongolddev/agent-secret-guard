@@ -24147,6 +24147,141 @@
         "cki",
         "ng."
       ]
+    },
+    {
+      "id": "tool-output-merge-pr-org-branch-ref",
+      "label": "negative",
+      "requirements": [
+        "negative:active-fp-recommendations",
+        "negative:vcs-diff-prose-identifiers"
+      ],
+      "surface": "tool-output",
+      "input_parts": [
+        "mas",
+        "ter",
+        ": s",
+        "yqs",
+        "prz",
+        "x f",
+        "d4c",
+        "d70",
+        "d (",
+        "emp",
+        "ty)",
+        " Me",
+        "rge",
+        " pu",
+        "ll ",
+        "req",
+        "ues",
+        "t #",
+        "48 ",
+        "fro",
+        "m H",
+        "arv",
+        "est",
+        "21-",
+        "Org",
+        "ani",
+        "zat",
+        "ion",
+        "/ci",
+        "cd-",
+        "tie",
+        "r2-",
+        "smo",
+        "ke"
+      ]
+    },
+    {
+      "id": "tool-output-org-branch-slug-bare",
+      "label": "negative",
+      "requirements": [
+        "negative:vcs-diff-prose-identifiers"
+      ],
+      "surface": "tool-output",
+      "input_parts": [
+        "Har",
+        "ves",
+        "t21",
+        "-Or",
+        "gan",
+        "iza",
+        "tio",
+        "n/c",
+        "icd",
+        "-ti",
+        "er2",
+        "-sm",
+        "oke"
+      ]
+    },
+    {
+      "id": "tool-output-jj-bookmark-mixedcase-ref",
+      "label": "negative",
+      "requirements": [
+        "negative:active-fp-recommendations",
+        "negative:vcs-diff-prose-identifiers"
+      ],
+      "surface": "tool-output",
+      "input_parts": [
+        "cla",
+        "ude",
+        "/te",
+        "st-",
+        "cov",
+        "era",
+        "ge-",
+        "ana",
+        "lys",
+        "is-",
+        "Qz9",
+        "Kx7",
+        "Lm@",
+        "ori",
+        "gin",
+        " fe",
+        "atu",
+        "re ",
+        "bra",
+        "nch"
+      ]
+    },
+    {
+      "id": "tool-output-doc-path-camelcase-underscore",
+      "label": "negative",
+      "requirements": [
+        "negative:active-fp-recommendations",
+        "negative:path-listings"
+      ],
+      "surface": "tool-output",
+      "input_parts": [
+        "see",
+        " ..",
+        "/..",
+        "/Ha",
+        "rve",
+        "st2",
+        "1_A",
+        "gen",
+        "tic",
+        "_CI",
+        "CD_",
+        "v1_",
+        "Pla",
+        "n_A",
+        "ppe",
+        "ndi",
+        "x.m",
+        "d f",
+        "or ",
+        "the",
+        " no",
+        "rma",
+        "tiv",
+        "e s",
+        "pec"
+      ]
     }
   ]
 }
