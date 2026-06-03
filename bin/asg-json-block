@@ -2,9 +2,9 @@
 # Generic harness adapter: read JSON from stdin, scan all string values, exit 2
 # on detection without printing source content.
 set -euo pipefail
-. "/Users/tayloreernisse/.local/bin/asg-hook-lib"
+. "{{ASG_HOME}}/.local/bin/asg-hook-lib"
 set +e
-"/Users/tayloreernisse/.local/bin/asg-fast" json-block "$@"
+"{{ASG_HOME}}/.local/bin/asg-fast" json-block "$@"
 STATUS=$?
 set -e
 if [[ "$STATUS" -eq 2 ]]; then

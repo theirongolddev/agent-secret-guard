@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "/Users/tayloreernisse/.local/bin/asg-codex-hook",
+            "command": "{{ASG_HOME}}/.local/bin/asg-codex-hook",
             "statusMessage": "Checking permission request for secrets",
             "timeout": 2,
             "type": "command"
@@ -17,7 +17,7 @@
       {
         "hooks": [
           {
-            "command": "/Users/tayloreernisse/.local/bin/asg-codex-hook",
+            "command": "{{ASG_HOME}}/.local/bin/asg-codex-hook",
             "statusMessage": "Checking tool output for secrets",
             "timeout": 2,
             "type": "command"
@@ -30,7 +30,7 @@
       {
         "hooks": [
           {
-            "command": "/Users/tayloreernisse/.local/bin/asg-codex-hook",
+            "command": "{{ASG_HOME}}/.local/bin/asg-codex-hook",
             "statusMessage": "Checking tool input for secrets",
             "timeout": 2,
             "type": "command"
@@ -43,7 +43,7 @@
       {
         "hooks": [
           {
-            "command": "/Users/tayloreernisse/.local/bin/asg-codex-hook",
+            "command": "{{ASG_HOME}}/.local/bin/asg-codex-hook",
             "statusMessage": "Checking prompt for secrets",
             "timeout": 2,
             "type": "command"

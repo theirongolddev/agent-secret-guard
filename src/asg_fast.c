@@ -17,8 +17,8 @@
 #include <unistd.h>
 
 #define ASG_MAX_BODY ((uint64_t)64 * 1024 * 1024)
-#define ASG_DEFAULT_CLI "/Users/tayloreernisse/.local/bin/agent-secret-guard"
-#define ASG_DEFAULT_SOCKET "/Users/tayloreernisse/.local/run/agent-secret-guard/asg.sock"
+#define ASG_DEFAULT_CLI "{{ASG_HOME}}/.local/bin/agent-secret-guard"
+#define ASG_DEFAULT_SOCKET "{{ASG_HOME}}/.local/run/agent-secret-guard/asg.sock"
 #define ASG_DEFAULT_DAEMON_TIMEOUT_MS 400
 #define ASG_DEFAULT_FALLBACK_TIMEOUT_MS 2000
 #define ASG_DEFAULT_CIRCUIT_SECONDS 60

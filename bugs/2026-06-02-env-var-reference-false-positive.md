@@ -1,6 +1,6 @@
 # Agent Secret Guard (ASG) Regression Report
 
-> Filed 2026-06-02 from a Claude Code session (repo: `/Users/tayloreernisse/harvest21`).
+> Filed 2026-06-02 from a Claude Code session (repo: `{{ASG_HOME}}/harvest21`).
 > ASG repeatedly blocked/redacted **secret-by-reference** shell, halting a
 > read-only CI-log diagnostic. Multiple distinct false positives, same root cause:
 > the detector treats a _reference to_ a secret (a `$VAR`, or a `--plain` fetch
@@ -111,7 +111,7 @@ secret, and should LOWER suspicion, not raise it.
   failed `staging-verify` job; authenticating with `CIRCLECI_API_TOKEN` passed by
   env-var reference (and via `infisical run` injection).
 - Agent harness: Claude Code.
-- Repo/path: `/Users/tayloreernisse/harvest21`.
+- Repo/path: `{{ASG_HOME}}/harvest21`.
 - Tool event: PreToolUse Bash (blocked) and PostToolUse Write/Read (redacted).
 - Recent command: a shell script of `curl … | jq` calls against the CircleCI API,
   written to `/tmp` and intended to run under `infisical run -- bash <script>`.

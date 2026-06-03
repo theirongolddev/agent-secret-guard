@@ -14,6 +14,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "package_manifest.json"
+HOME_TEMPLATE = "{{ASG_HOME}}"
 HOOK_MARKERS = (
     "agent-secret-guard",
     "asg-fast",
@@ -52,17 +53,46 @@ def executable(path: Path) -> bool:
     return path.exists() and os.access(path, os.X_OK)
 
 
-def copy_atomic(src: Path, dst: Path, mode: int, *, dry_run: bool) -> bool:
+def render_home_template(data: bytes) -> bytes:
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data
+    return text.replace(HOME_TEMPLATE, str(Path.home())).encode("utf-8")
+
+
+def normalize_home_template(data: bytes) -> bytes:
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data
+    return text.replace(str(Path.home()), HOME_TEMPLATE).encode("utf-8")
+
+
+def copy_atomic(
+    src: Path,
+    dst: Path,
+    mode: int,
+    *,
+    dry_run: bool,
+    render_home: bool = False,
+    normalize_home: bool = False,
+) -> bool:
     if not src.exists():
         raise FileNotFoundError(str(src))
     if dry_run:
         return True
+    data = src.read_bytes()
+    if render_home:
+        data = render_home_template(data)
+    if normalize_home:
+        data = normalize_home_template(data)
     dst.parent.mkdir(parents=True, exist_ok=True)
     fd, raw_temp = tempfile.mkstemp(prefix=f".{dst.name}.asg-tmp-", dir=str(dst.parent))
     temp = Path(raw_temp)
     try:
-        with src.open("rb") as source, os.fdopen(fd, "wb") as target:
-            shutil.copyfileobj(source, target)
+        with os.fdopen(fd, "wb") as target:
+            target.write(data)
         temp.chmod(mode)
         os.replace(temp, dst)
     finally:
@@ -181,7 +211,7 @@ def cmd_consolidate(args: argparse.Namespace) -> int:
         if not live.exists():
             missing.append(str(live))
             continue
-        copy_atomic(live, target, mode_int(entry["mode"]), dry_run=args.dry_run)
+        copy_atomic(live, target, mode_int(entry["mode"]), dry_run=args.dry_run, normalize_home=True)
         copied.append(entry["repo"])
     result = {"ok": not missing, "mode": "dry-run" if args.dry_run else "apply", "copied": copied, "missing": missing}
     print(json.dumps(result, indent=2, sort_keys=True))
@@ -204,12 +234,26 @@ def build_fast_client(build: dict[str, Any], *, dry_run: bool) -> dict[str, Any]
         result["dry_run"] = True
         return result
     target.parent.mkdir(parents=True, exist_ok=True)
-    proc = subprocess.run(
-        [compiler, *build["args"], "-o", str(target), str(source)],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
+    source_data = source.read_bytes()
+    rendered_source = render_home_template(source_data)
+    temp_source: Path | None = None
+    compile_source = source
+    if rendered_source != source_data:
+        fd, raw_temp = tempfile.mkstemp(prefix="asg-fast-rendered-", suffix=".c")
+        temp_source = Path(raw_temp)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(rendered_source)
+        compile_source = temp_source
+    try:
+        proc = subprocess.run(
+            [compiler, *build["args"], "-o", str(target), str(compile_source)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    finally:
+        if temp_source and temp_source.exists():
+            temp_source.unlink()
     result["built"] = proc.returncode == 0
     result["returncode"] = proc.returncode
     if proc.returncode == 0:
@@ -226,7 +270,13 @@ def cmd_install(args: argparse.Namespace) -> int:
 
     installed = []
     for entry in manifest["files"]:
-        copy_atomic(repo_path(entry["repo"]), expand(entry["install"]), mode_int(entry["mode"]), dry_run=args.dry_run)
+        copy_atomic(
+            repo_path(entry["repo"]),
+            expand(entry["install"]),
+            mode_int(entry["mode"]),
+            dry_run=args.dry_run,
+            render_home=True,
+        )
         installed.append(entry["install"])
 
     builds = [build_fast_client(build, dry_run=args.dry_run) for build in manifest.get("builds", [])]
@@ -304,7 +354,23 @@ def cmd_verify_layout(_: argparse.Namespace) -> int:
     manifest = load_manifest()
     missing = [entry["repo"] for entry in manifest["files"] if not repo_path(entry["repo"]).exists()]
     source_runtime = [path for path in manifest["generated_state"] if path.startswith("~/.local/state") or path.startswith("~/.local/run")]
-    result = {"ok": not missing and bool(source_runtime), "missing": missing, "generated_state_rules": manifest["generated_state"]}
+    hardcoded_home = []
+    home = str(Path.home())
+    for entry in manifest["files"]:
+        path = repo_path(entry["repo"])
+        if not path.exists():
+            continue
+        try:
+            if home in path.read_text(encoding="utf-8"):
+                hardcoded_home.append(entry["repo"])
+        except UnicodeDecodeError:
+            continue
+    result = {
+        "ok": not missing and bool(source_runtime) and not hardcoded_home,
+        "missing": missing,
+        "hardcoded_home": hardcoded_home,
+        "generated_state_rules": manifest["generated_state"],
+    }
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["ok"] else 1
 

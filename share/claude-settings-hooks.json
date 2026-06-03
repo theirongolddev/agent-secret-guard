@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "/Users/tayloreernisse/.local/bin/secret-scan",
+            "command": "{{ASG_HOME}}/.local/bin/secret-scan",
             "type": "command"
           }
         ],
@@ -15,19 +15,19 @@
       {
         "hooks": [
           {
-            "command": "/Users/tayloreernisse/.local/bin/cmd-leak-guard",
+            "command": "{{ASG_HOME}}/.local/bin/cmd-leak-guard",
             "type": "command"
           },
           {
-            "command": "/Users/tayloreernisse/.local/bin/secret-wrap",
+            "command": "{{ASG_HOME}}/.local/bin/secret-wrap",
             "type": "command"
           },
           {
-            "command": "/Users/tayloreernisse/.local/bin/infisical-guard",
+            "command": "{{ASG_HOME}}/.local/bin/infisical-guard",
             "type": "command"
           },
           {
-            "command": "/Users/tayloreernisse/.local/bin/secret-push-guard",
+            "command": "{{ASG_HOME}}/.local/bin/secret-push-guard",
             "type": "command"
           }
         ],
@@ -36,7 +36,7 @@
       {
         "hooks": [
           {
-            "command": "/Users/tayloreernisse/.local/bin/file-leak-guard",
+            "command": "{{ASG_HOME}}/.local/bin/file-leak-guard",
             "type": "command"
           }
         ],
@@ -45,7 +45,7 @@
       {
         "hooks": [
           {
-            "command": "/Users/tayloreernisse/.local/bin/secret-url-guard",
+            "command": "{{ASG_HOME}}/.local/bin/secret-url-guard",
             "type": "command"
           }
         ],
@@ -54,7 +54,7 @@
       {
         "hooks": [
           {
-            "command": "/Users/tayloreernisse/.local/bin/secret-mcp-guard",
+            "command": "{{ASG_HOME}}/.local/bin/secret-mcp-guard",
             "type": "command"
           }
         ],

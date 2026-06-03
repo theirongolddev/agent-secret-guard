@@ -2,10 +2,10 @@
 # Generic harness adapter: read a VCS diff from stdin and block if it contains
 # credible secret material. The diff is never echoed.
 set -euo pipefail
-. "/Users/tayloreernisse/.local/bin/asg-hook-lib"
+. "{{ASG_HOME}}/.local/bin/asg-hook-lib"
 
 set +e
-"/Users/tayloreernisse/.local/bin/asg-fast" scan --surface vcs-diff --quiet --fail-on-detect
+"{{ASG_HOME}}/.local/bin/asg-fast" scan --surface vcs-diff --quiet --fail-on-detect
 STATUS=$?
 set -e
 

@@ -1,2 +1,2 @@
 #!/bin/bash
-exec "/Users/tayloreernisse/.local/bin/asg-codex-hook" "$@"
+exec "{{ASG_HOME}}/.local/bin/asg-codex-hook" "$@"

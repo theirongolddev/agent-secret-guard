@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any
 
 
-ASG = Path("/Users/tayloreernisse/.local/bin/agent-secret-guard")
-ASG_FAST = Path("/Users/tayloreernisse/.local/bin/asg-fast")
+ASG = Path("{{ASG_HOME}}/.local/bin/agent-secret-guard")
+ASG_FAST = Path("{{ASG_HOME}}/.local/bin/asg-fast")
 
 
 def run_step(name: str, argv: list[str], *, timeout: float, input_text: str | None = None) -> dict[str, Any]:

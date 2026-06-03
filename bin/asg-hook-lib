@@ -63,7 +63,7 @@ asg_warn_fail_closed() {
 }
 
 asg_recovery_hint() {
-  printf '%s' 'Run /Users/tayloreernisse/.local/bin/asg-recover, then retry. If recovery reports ok=false, run /Users/tayloreernisse/.local/bin/agent-secret-guard doctor.'
+  printf '%s' 'Run {{ASG_HOME}}/.local/bin/asg-recover, then retry. If recovery reports ok=false, run {{ASG_HOME}}/.local/bin/agent-secret-guard doctor.'
 }
 
 asg_fail_closed_stderr() {
@@ -76,14 +76,14 @@ asg_fail_closed_stderr() {
 asg_claude_pretool_fail_closed() {
   local source="${1:-claude}"
   asg_warn_fail_closed "$source"
-  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Agent Secret Guard infrastructure unavailable; high-risk operation blocked until guard health is restored. Run /Users/tayloreernisse/.local/bin/asg-recover, then retry. If recovery reports ok=false, run /Users/tayloreernisse/.local/bin/agent-secret-guard doctor."}}'
+  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Agent Secret Guard infrastructure unavailable; high-risk operation blocked until guard health is restored. Run {{ASG_HOME}}/.local/bin/asg-recover, then retry. If recovery reports ok=false, run {{ASG_HOME}}/.local/bin/agent-secret-guard doctor."}}'
   exit 0
 }
 
 asg_claude_posttool_fail_closed() {
   local source="${1:-claude}"
   asg_warn_fail_closed "$source"
-  printf '%s\n' '{"continue":true,"suppressOutput":true,"systemMessage":"Agent Secret Guard infrastructure unavailable; tool output suppressed until guard health is restored. Run /Users/tayloreernisse/.local/bin/asg-recover, then retry.","hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"Agent Secret Guard infrastructure unavailable; original tool output was suppressed without inspection. Run /Users/tayloreernisse/.local/bin/asg-recover, then retry. If recovery reports ok=false, run /Users/tayloreernisse/.local/bin/agent-secret-guard doctor."}}'
+  printf '%s\n' '{"continue":true,"suppressOutput":true,"systemMessage":"Agent Secret Guard infrastructure unavailable; tool output suppressed until guard health is restored. Run {{ASG_HOME}}/.local/bin/asg-recover, then retry.","hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"Agent Secret Guard infrastructure unavailable; original tool output was suppressed without inspection. Run {{ASG_HOME}}/.local/bin/asg-recover, then retry. If recovery reports ok=false, run {{ASG_HOME}}/.local/bin/agent-secret-guard doctor."}}'
   exit 0
 }
 
@@ -96,15 +96,15 @@ asg_codex_fail_closed() {
       ;;
     PreToolUse)
       asg_warn_fail_closed codex
-      printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Agent Secret Guard infrastructure unavailable; high-risk operation blocked until guard health is restored. Run /Users/tayloreernisse/.local/bin/asg-recover, then retry. If recovery reports ok=false, run /Users/tayloreernisse/.local/bin/agent-secret-guard doctor."}}'
+      printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Agent Secret Guard infrastructure unavailable; high-risk operation blocked until guard health is restored. Run {{ASG_HOME}}/.local/bin/asg-recover, then retry. If recovery reports ok=false, run {{ASG_HOME}}/.local/bin/agent-secret-guard doctor."}}'
       ;;
     PermissionRequest)
       asg_warn_fail_closed codex
-      printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"Agent Secret Guard infrastructure unavailable; permission request blocked until guard health is restored. Run /Users/tayloreernisse/.local/bin/asg-recover, then retry. If recovery reports ok=false, run /Users/tayloreernisse/.local/bin/agent-secret-guard doctor."}}}'
+      printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"Agent Secret Guard infrastructure unavailable; permission request blocked until guard health is restored. Run {{ASG_HOME}}/.local/bin/asg-recover, then retry. If recovery reports ok=false, run {{ASG_HOME}}/.local/bin/agent-secret-guard doctor."}}}'
       ;;
     *)
       asg_warn_fail_closed codex
-      printf '%s\n' '{"decision":"block","reason":"Agent Secret Guard infrastructure unavailable; hook event blocked until guard health is restored. Run /Users/tayloreernisse/.local/bin/asg-recover, then retry. If recovery reports ok=false, run /Users/tayloreernisse/.local/bin/agent-secret-guard doctor."}'
+      printf '%s\n' '{"decision":"block","reason":"Agent Secret Guard infrastructure unavailable; hook event blocked until guard health is restored. Run {{ASG_HOME}}/.local/bin/asg-recover, then retry. If recovery reports ok=false, run {{ASG_HOME}}/.local/bin/agent-secret-guard doctor."}'
       ;;
   esac
   exit 0
@@ -114,10 +114,10 @@ asg_cursor_fail_closed() {
   local event="${1:-preToolUse}"
   if [[ "$event" == "beforeSubmitPrompt" ]]; then
     asg_warn_fail_open cursor
-    printf '%s\n' '{"continue":true,"user_message":"Agent Secret Guard infrastructure unavailable; prompt allowed because prompt hooks are advisory. Run /Users/tayloreernisse/.local/bin/asg-recover before retrying blocked tool actions.","agent_message":"Agent Secret Guard infrastructure unavailable; prompt allowed because prompt hooks are advisory. Run /Users/tayloreernisse/.local/bin/asg-recover before retrying blocked tool actions. If recovery reports ok=false, run /Users/tayloreernisse/.local/bin/agent-secret-guard doctor."}'
+    printf '%s\n' '{"continue":true,"user_message":"Agent Secret Guard infrastructure unavailable; prompt allowed because prompt hooks are advisory. Run {{ASG_HOME}}/.local/bin/asg-recover before retrying blocked tool actions.","agent_message":"Agent Secret Guard infrastructure unavailable; prompt allowed because prompt hooks are advisory. Run {{ASG_HOME}}/.local/bin/asg-recover before retrying blocked tool actions. If recovery reports ok=false, run {{ASG_HOME}}/.local/bin/agent-secret-guard doctor."}'
   else
     asg_warn_fail_closed cursor
-    printf '%s\n' '{"permission":"deny","user_message":"Agent Secret Guard infrastructure unavailable; high-risk operation blocked until guard health is restored. Run /Users/tayloreernisse/.local/bin/asg-recover, then retry.","agent_message":"Agent Secret Guard infrastructure unavailable; high-risk operation blocked until guard health is restored. Run /Users/tayloreernisse/.local/bin/asg-recover, then retry. If recovery reports ok=false, run /Users/tayloreernisse/.local/bin/agent-secret-guard doctor."}'
+    printf '%s\n' '{"permission":"deny","user_message":"Agent Secret Guard infrastructure unavailable; high-risk operation blocked until guard health is restored. Run {{ASG_HOME}}/.local/bin/asg-recover, then retry.","agent_message":"Agent Secret Guard infrastructure unavailable; high-risk operation blocked until guard health is restored. Run {{ASG_HOME}}/.local/bin/asg-recover, then retry. If recovery reports ok=false, run {{ASG_HOME}}/.local/bin/agent-secret-guard doctor."}'
   fi
   exit 0
 }

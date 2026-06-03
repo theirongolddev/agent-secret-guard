@@ -1,7 +1,7 @@
 #!/bin/bash
 # JSON Bash PreToolUse adapter. Command policy lives in agent_secret_guard.py.
 set -euo pipefail
-. "/Users/tayloreernisse/.local/bin/asg-hook-lib"
+. "{{ASG_HOME}}/.local/bin/asg-hook-lib"
 
 JQ="/usr/bin/jq"
 if [[ ! -x "$JQ" ]]; then

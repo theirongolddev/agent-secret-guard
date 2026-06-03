@@ -8,9 +8,9 @@ Reduce Agent Secret Guard false positives without weakening protection against a
 
 Work in:
 
-- `/Users/tayloreernisse/.local/lib/agent_secret_guard.py`
-- `/Users/tayloreernisse/.local/bin/agent-secret-guard-tests`
-- `/Users/tayloreernisse/.local/share/agent-secret-guard/eval-corpus.json`
+- `{{ASG_HOME}}/.local/lib/agent_secret_guard.py`
+- `{{ASG_HOME}}/.local/bin/agent-secret-guard-tests`
+- `{{ASG_HOME}}/.local/share/agent-secret-guard/eval-corpus.json`
 - ASG wrapper scripts only if required
 
 Do not read `.env*` files. Do not print real secrets. Use only synthetic fixtures or reference-only examples.
@@ -38,7 +38,7 @@ Do not read `.env*` files. Do not print real secrets. Use only synthetic fixture
 5. ASG infrastructure failure behavior remains:
    - High-risk tool/action hooks fail closed with recovery instructions.
    - Prompt hooks allow.
-   - Recovery message must mention `/Users/tayloreernisse/.local/bin/asg-recover`.
+   - Recovery message must mention `{{ASG_HOME}}/.local/bin/asg-recover`.
    - `doctor` must report unhealthy for recent high-risk fail-open/fail-closed telemetry or open daemon circuit.
 
 ## TDD Methodology
@@ -76,10 +76,10 @@ Implement all relevant layers.
 
 2. Wrapper contract tests
    - Run actual wrappers with JSON payloads:
-     - `/Users/tayloreernisse/.local/bin/asg-codex-hook`
-     - `/Users/tayloreernisse/.local/bin/secret-wrap`
-     - `/Users/tayloreernisse/.local/bin/secret-scan`
-     - `/Users/tayloreernisse/.local/bin/cmd-leak-guard`
+     - `{{ASG_HOME}}/.local/bin/asg-codex-hook`
+     - `{{ASG_HOME}}/.local/bin/secret-wrap`
+     - `{{ASG_HOME}}/.local/bin/secret-scan`
+     - `{{ASG_HOME}}/.local/bin/cmd-leak-guard`
    - Validate harness-native responses:
      - Codex benign prompt returns `{}`.
      - Codex PreToolUse dangerous command returns deny.
@@ -198,10 +198,10 @@ Complete only when all are true:
 9. Required full verification passes:
 
 ```bash
-/Users/tayloreernisse/.local/bin/agent-secret-guard-tests
-/Users/tayloreernisse/.local/bin/asg-fast prove
-/Users/tayloreernisse/.local/bin/asg-fast doctor
-/Users/tayloreernisse/.local/bin/asg-fast external-eval
+{{ASG_HOME}}/.local/bin/agent-secret-guard-tests
+{{ASG_HOME}}/.local/bin/asg-fast prove
+{{ASG_HOME}}/.local/bin/asg-fast doctor
+{{ASG_HOME}}/.local/bin/asg-fast external-eval
 ```
 
 10. Final health:
