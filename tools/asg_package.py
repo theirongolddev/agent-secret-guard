@@ -307,28 +307,36 @@ def cmd_install(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def remove_path(path: Path, *, dry_run: bool) -> bool:
+    if not path.exists() and not path.is_symlink():
+        return False
+    if dry_run:
+        return True
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+    return True
+
+
 def cmd_uninstall(args: argparse.Namespace) -> int:
     manifest = load_manifest()
     removed: list[str] = []
     for entry in reversed(manifest["files"]):
         target = expand(entry["install"])
-        if target.exists():
+        if remove_path(target, dry_run=args.dry_run):
             removed.append(str(target))
-            if not args.dry_run:
-                target.unlink()
     for build in manifest.get("builds", []):
         target = expand(build["target"])
-        if target.exists():
+        if remove_path(target, dry_run=args.dry_run):
             removed.append(str(target))
-            if not args.dry_run:
-                target.unlink()
 
-    generated = [expand("~/.local/share/agent-secret-guard/install-manifest.json")]
-    for path in generated:
-        if path.exists():
+    for raw_path in manifest.get("generated_state", []):
+        if raw_path.startswith("**/"):
+            continue
+        path = expand(raw_path)
+        if remove_path(path, dry_run=args.dry_run):
             removed.append(str(path))
-            if not args.dry_run:
-                path.unlink()
 
     hook_results = []
     if not args.keep_active_hooks:
