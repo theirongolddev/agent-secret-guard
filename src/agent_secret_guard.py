@@ -566,6 +566,53 @@ def is_credential_free_url(value: str) -> bool:
     return bool(parsed.scheme and parsed.netloc and "@" not in parsed.netloc)
 
 
+def is_placeholder_credential_url(value: str) -> bool:
+    candidate = normalize_candidate(value)
+    try:
+        parsed = urlsplit(candidate)
+    except ValueError:
+        return False
+    if not parsed.username or parsed.password is None:
+        return False
+    username = unquote(parsed.username).lower()
+    password = unquote(parsed.password).lower()
+    host = (parsed.hostname or "").lower()
+    placeholder_users = {"user", "username", "postgres", "mysql", "redis", "mongo", "mongodb", "root", "admin", "test"}
+    placeholder_passwords = {
+        "password",
+        "pass",
+        "postgres",
+        "mysql",
+        "redis",
+        "mongo",
+        "mongodb",
+        "secret",
+        "changeme",
+        "changeit",
+        "example",
+        "placeholder",
+        "dummy",
+        "test",
+    }
+    if username not in placeholder_users or password not in placeholder_passwords:
+        return False
+    if host in {"localhost", "127.0.0.1", "::1", "db", "database", "postgres", "mysql", "redis", "mongo", "mongodb"}:
+        return True
+    return bool(re.fullmatch(r"[a-z0-9-]+\.(?:localhost|local|test|example|invalid)", host))
+
+
+def credential_url_placeholder_context(text: str, start: int, end: int) -> bool:
+    line_start = text.rfind("\n", 0, start) + 1
+    previous_start = text.rfind("\n", 0, max(0, line_start - 1)) + 1
+    next_end = text.find("\n", end)
+    if next_end == -1:
+        next_end = len(text)
+    context_start = max(0, previous_start)
+    context_end = min(len(text), next_end + 1)
+    context = text[context_start:context_end].lower()
+    return any(marker in context for marker in (".env.example", ".env.sample", ".env.template", "placeholder", "dummy"))
+
+
 def is_shell_variable_reference(value: str) -> bool:
     candidate = normalize_candidate(value)
     return bool(re.fullmatch(r"\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})", candidate))
@@ -1451,7 +1498,7 @@ PEM_HEADER_RE = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
 PGP_PRIVATE_KEY_BLOCK_RE = re.compile(
     ''.join(('---', '--B', 'EGI', 'N P', 'GP ', 'PRI', 'VAT', 'E K', 'EY ', 'BLO', 'CK-', '---', '-[\\', 's\\S', ']*?', '---', '--E', 'ND ', 'PGP', ' PR', 'IVA', 'TE ', 'KEY', ' BL', 'OCK', '---', '--'))
 )
-PGP_PRIVATE_KEY_HEADER_RE = re.compile(r"-----BEGIN PGP PRIVATE KEY BLOCK-----")
+PGP_PRIVATE_KEY_HEADER_RE = re.compile(''.join(('---', '--B', 'EGI', 'N P', 'GP ', 'PRI', 'VAT', 'E K', 'EY ', 'BLO', 'CK-', '---', '-')))
 URL_RE = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"<>]+")
 
 COMMAND_BOUNDARY = r"(?:^|[\s|;&]|\$\()"
@@ -2096,6 +2143,9 @@ def add_auth_and_url_findings(text: str, findings: list[Finding]) -> None:
             end = match.end()
             while end > match.start() and text[end - 1] in ".,;)]}":
                 end -= 1
+            value = text[match.start():end]
+            if is_placeholder_credential_url(value) and credential_url_placeholder_context(text, match.start(), end):
+                continue
             findings.append(Finding("CREDENTIAL_URL", match.start(), end, 0.94, "URL contains username/password credentials"))
 
     if ("?" in text or "&" in text) and has_sensitive_text_hint(text_lower):
@@ -2132,7 +2182,7 @@ ASSIGNMENT_KEY_HINT_RE = re.compile(
     r"[A-Za-z0-9_.-]*[\"']?\s*[:=]"
 )
 SOURCE_LISTING_PREFIX_RE = re.compile(
-    r"^(?:[A-Za-z]:)?(?=[^:\r\n]{1,1000}(?:[/.\\]))[^:\r\n]{1,1000}:\d+(?::\d+)?:"
+    r"^(?P<path>(?:[A-Za-z]:)?(?=[^:\r\n]{1,1000}(?:[/.\\]))[^:\r\n]{1,1000}):\d+(?::\d+)?:"
 )
 
 
@@ -2141,6 +2191,21 @@ def strip_source_listing_prefix(line: str) -> tuple[str, int]:
     if not match:
         return line, 0
     return line[match.end():], match.end()
+
+
+def env_template_source_listing_spans(text: str) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    line_start = 0
+    for line in text.splitlines(keepends=True):
+        match = SOURCE_LISTING_PREFIX_RE.match(line)
+        if match and ENV_TEMPLATE_PATH_RE.search(match.group("path").replace("\\", "/")):
+            spans.append((line_start, line_start + len(line)))
+        line_start += len(line)
+    return spans
+
+
+def finding_in_span(finding: Finding, spans: list[tuple[int, int]]) -> bool:
+    return any(start <= finding.start and finding.end <= end for start, end in spans)
 
 
 def add_assignment_findings(text: str, findings: list[Finding], *, path: str = "", surface: str = "") -> None:
@@ -3402,6 +3467,9 @@ def scan_text(
     add_percent_encoded_findings(text, findings, surface=surface)
     add_hex_encoded_findings(text, findings, surface=surface)
     add_encoded_blob_findings(text, findings, surface=surface)
+    env_template_spans = env_template_source_listing_spans(text)
+    if env_template_spans:
+        findings = [finding for finding in findings if not finding_in_span(finding, env_template_spans)]
     return dedupe_findings(findings, threshold=threshold)
 
 
