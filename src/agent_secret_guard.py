@@ -2788,6 +2788,26 @@ def is_vercel_deployment_metadata_identifier(value: str, line: str) -> bool:
     return bool(re.search(r"https://vercel\.com/[^\s\"']+/" + re.escape(candidate) + r"(?:[\"'\s,}]|$)", line))
 
 
+def is_public_platform_identifier(value: str, line: str) -> bool:
+    candidate = normalize_candidate(value)
+    possible_values = [candidate]
+    for separator in ("=", ":"):
+        if separator in candidate:
+            possible_values.append(candidate.split(separator, 1)[1].strip())
+
+    contexts = (
+        ("VERCEL_ORG_ID", r"team_[A-Za-z0-9]{12,96}"),
+        ("VERCEL_PROJECT_ID", r"prj_[A-Za-z0-9]{12,96}"),
+        ("SUPABASE_PROJECT_ID", r"[a-z0-9]{20}"),
+    )
+    for key, pattern in contexts:
+        if not re.search(rf"\b{re.escape(key)}\b", line):
+            continue
+        if any(re.fullmatch(pattern, item) for item in possible_values):
+            return True
+    return False
+
+
 def add_high_entropy_findings(text: str, findings: list[Finding]) -> None:
     if not HIGH_ENTROPY_RE.search(text):
         return
@@ -2809,6 +2829,7 @@ def add_high_entropy_findings(text: str, findings: list[Finding]) -> None:
                 or is_lowercase_slug(value)
                 or is_schema_identifier_candidate(value)
                 or is_vercel_deployment_metadata_identifier(value, scan_line)
+                or is_public_platform_identifier(value, scan_line)
                 or any(char.isspace() for char in value)
                 or is_path_like_candidate(value)
                 or is_ref_or_path_slug(value)
@@ -3534,7 +3555,47 @@ def public_summary(
 
 def reason_for(findings: list[Finding], *, prefix: str = "Potential secret material detected") -> str:
     kinds = ", ".join(sorted({finding.kind for finding in findings}))
-    return f"{prefix} ({kinds}). Content omitted to avoid logging secrets."
+    remediation = remediation_for_findings(findings)
+    return f"{prefix} ({kinds}). Content omitted to avoid logging secrets. {remediation}"
+
+
+def remediation_for_findings(findings: list[Finding]) -> str:
+    reasons = " ".join(finding.reason.lower() for finding in findings)
+    hints: list[str] = []
+    if "process listing" in reasons or "argv" in reasons or "procfs" in reasons:
+        hints.append(
+            "For process status, avoid full argument columns; use `pgrep -x NAME`, "
+            "`pgrep -l NAME`, or `ps -ax -o pid=,stat=,etime=,comm= | rg PATTERN`. "
+            "If full arguments are required, pipe the process listing directly to ASG "
+            "redaction as the only pipe stage before inspecting output."
+        )
+    if "environment dump" in reasons or "printenv" in reasons or "shell variables" in reasons or "variable values" in reasons:
+        hints.append(
+            "For runtime variable checks, emit names only with a key projection such as "
+            "`cut -d= -f1`, `sed 's/=.*//'`, or `awk -F= '{print $1}'`; do not print values."
+        )
+    if "secret-bearing files" in reasons or "known secret-bearing files" in reasons or "sourcing known" in reasons:
+        hints.append(
+            "For secret files, read checked-in example/template files or metadata only; "
+            "use operator-managed secret injection for real values."
+        )
+    if "token" in reasons or "credentials" in reasons or "secret values" in reasons or "secret payload" in reasons:
+        hints.append(
+            "For cloud and secret-manager workflows, prefer list/show-metadata commands "
+            "or runtime injection; do not print bearer tokens, decrypted values, passwords, "
+            "or generated credentials."
+        )
+    if "curl" in reasons or "wget" in reasons or "password arguments" in reasons:
+        hints.append(
+            "For HTTP calls, remove verbose/trace modes and keep credentials in referenced "
+            "variables or stdin-specific safe flags rather than literal argv values."
+        )
+    if not hints:
+        hints.append(
+            "Retry with metadata-only output, key-only projections, operator-managed "
+            "secret injection, or ASG-redacted output where supported."
+        )
+    return " ".join(dict.fromkeys(hints))
 
 
 def insert_json_item(target: dict[Any, Any], key: Any, value: Any) -> None:

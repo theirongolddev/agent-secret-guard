@@ -17,7 +17,7 @@ if [[ -z "$COMMAND" ]]; then
 fi
 
 set +e
-printf '%s' "$COMMAND" | "$HOME/.local/bin/asg-fast" scan --surface bash-command --quiet --fail-on-detect
+REPORT=$(printf '%s' "$COMMAND" | "$HOME/.local/bin/asg-fast" scan --surface bash-command --fail-on-detect 2>/dev/null)
 STATUS=$?
 set -e
 
@@ -30,17 +30,80 @@ if [[ "$STATUS" -ne 2 ]]; then
   asg_claude_pretool_fail_closed claude
 fi
 
+REASONS=$(printf '%s' "$REPORT" | "$JQ" -r '.findings[]?.reason // empty' 2>/dev/null | /usr/bin/tr '\n' ' ' || true)
+POLICY_LABELS=""
+GUIDANCE=""
+
+case "$REASONS" in
+  *"process listing"*|*"argv"*|*"procfs"*)
+    POLICY_LABELS="${POLICY_LABELS}  - process argv/status listing can expose secret-bearing arguments or procfs state
+"
+    GUIDANCE="${GUIDANCE}  - Process status: avoid full argument columns. Use pgrep -x NAME, pgrep -l NAME, or ps -ax -o pid=,stat=,etime=,comm= | rg PATTERN.
+  - Full process arguments: pipe the process listing directly to ASG redaction as the only pipe stage before inspecting output.
+"
+    ;;
+esac
+
+case "$REASONS" in
+  *"environment dump"*|*"printenv"*|*"shell variables"*|*"variable values"*)
+    POLICY_LABELS="${POLICY_LABELS}  - runtime variable value dump can expose secrets
+"
+    GUIDANCE="${GUIDANCE}  - Runtime variable checks: print names only with cut -d= -f1, sed 's/=.*//', or awk -F= '{print \$1}'; do not print values.
+"
+    ;;
+esac
+
+case "$REASONS" in
+  *"secret-bearing files"*|*"known secret-bearing files"*|*"sourcing known"*)
+    POLICY_LABELS="${POLICY_LABELS}  - secret-bearing file read/source operation
+"
+    GUIDANCE="${GUIDANCE}  - Secret files: read checked-in example/template files or metadata only; use operator-managed secret injection for real values.
+"
+    ;;
+esac
+
+case "$REASONS" in
+  *"token"*|*"credentials"*|*"secret values"*|*"secret payload"*|*"password"*)
+    POLICY_LABELS="${POLICY_LABELS}  - command can print tokens, passwords, decrypted values, or generated credentials
+"
+    GUIDANCE="${GUIDANCE}  - Cloud and secret-manager workflows: use list/show-metadata commands or runtime injection; do not print bearer tokens, passwords, decrypted values, or generated credentials.
+"
+    ;;
+esac
+
+case "$REASONS" in
+  *"curl"*|*"wget"*|*"password arguments"*|*"verbose"*)
+    POLICY_LABELS="${POLICY_LABELS}  - HTTP client mode or argv credential can expose request secrets
+"
+    GUIDANCE="${GUIDANCE}  - HTTP calls: remove verbose/trace modes and keep credentials in referenced variables or stdin-specific safe flags rather than literal argv values.
+"
+    ;;
+esac
+
+if [[ -z "$POLICY_LABELS" ]]; then
+  POLICY_LABELS="  - secret-bearing command output or arguments
+"
+fi
+
+if [[ -z "$GUIDANCE" ]]; then
+  GUIDANCE="  - Retry with metadata-only output, key-only projections, operator-managed secret injection, or ASG-redacted output where supported.
+"
+fi
+
 {
   echo "═══ BLOCKED BY cmd-leak-guard ═══"
   echo ""
-  echo "Reason: central Agent Secret Guard command policy detected potential secret exposure."
+  echo "Reason: central Agent Secret Guard command policy detected a risky shell command."
+  echo ""
+  echo "Matched policy category:"
+  printf '%s' "$POLICY_LABELS"
   echo ""
   echo "Blocked command omitted to avoid writing secret-bearing text into hook logs."
   echo ""
-  echo "Safer alternative:"
-  echo "  use key-only projections, operator-managed secret injection, or a redacted command path"
+  echo "How to adapt the tool call:"
+  printf '%s' "$GUIDANCE"
   echo ""
-  echo "If you genuinely need this command, ask the user to run it manually using"
+  echo "Retry with a transformed command. If the exact blocked command is genuinely required, ask the user to run it manually using"
   echo "the '! <command>' prompt prefix. Do not bypass this guard."
 } >&2
 exit 2
